@@ -1,40 +1,44 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct Route66MapView: View {
-    @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 35.0, longitude: -98.0),
-        span: MKCoordinateSpan(latitudeDelta: 20, longitudeDelta: 20)
-    )
+    @State private var position: MapCameraPosition = .automatic
     @State private var route: MKRoute?
+    
+    private let startCoordinate = CLLocationCoordinate2D(latitude: 41.8781, longitude: -87.6298) // Chicago
+    private let endCoordinate = CLLocationCoordinate2D(latitude: 34.0100, longitude: -118.4962) // Santa Monica
 
     var body: some View {
-        Map(coordinateRegion: $region, annotationItems: samplePOIs) { poi in
-            MapAnnotation(coordinate: poi.coordinate) {
-                VStack {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.orange)
-                    Text(poi.name)
-                        .font(.caption)
+        Map(position: $position) {
+            // Add route polyline if available
+            if let route = route {
+                MapPolyline(route.polyline)
+                    .stroke(Color.blue, lineWidth: 4)
+            }
+            
+            // Add annotations for points of interest
+            ForEach(samplePOIs) { poi in
+                Annotation(poi.name, coordinate: poi.coordinate) {
+                    VStack {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.orange)
+                            .font(.title3)
+                        Text(poi.name)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .padding(4)
                 }
             }
         }
+        .mapStyle(.standard)
         .onAppear(perform: loadRoute)
-        .overlay(routePolyline)
-    }
-
-    private var routePolyline: some View {
-        Group {
-            if let polyline = route?.polyline {
-                MapPolyline(polyline)
-                    .stroke(Color.blue, lineWidth: 4)
-            }
-        }
     }
 
     private func loadRoute() {
-        let start = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: 41.8781, longitude: -87.6298)) // Chicago
-        let end = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: 34.0100, longitude: -118.4962)) // Santa Monica
+        let start = MKPlacemark(coordinate: startCoordinate)
+        let end = MKPlacemark(coordinate: endCoordinate)
 
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: start)
@@ -45,7 +49,10 @@ struct Route66MapView: View {
         directions.calculate { response, error in
             if let route = response?.routes.first {
                 self.route = route
-                self.region = MKCoordinateRegion(route.polyline.boundingMapRect)
+                // Update map position to show the entire route
+                self.position = .rect(route.polyline.boundingMapRect)
+            } else if let error = error {
+                print("Error calculating route: \(error.localizedDescription)")
             }
         }
     }
